@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pixel Sandbox Web</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            border: 1px solid #333;
+        }
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            color: white;
+            text-align: center;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="controls">WASD: Move | 1-4: Select Block | Left Click: Place | Right Click: Break</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Constants
+        const WINDOW_WIDTH = 800;
+        const WINDOW_HEIGHT = 600;
+        const TILE_SIZE = 32;
+        
+        // Set canvas size
+        canvas.width = WINDOW_WIDTH;
+        canvas.height = WINDOW_HEIGHT;
+        
+        // Colors
+        const COLORS = {
+            SKY_BLUE: '#87CEEB',
+            GRASS_GREEN: '#228B22',
+            DIRT_BROWN: '#8B4513',
+            STONE_GRAY: '#808080',
+            GOLD: '#FFD700',
+            WHITE: '#FFFFFF'
+        };
+        
+        // Block types
+        const BLOCK_TYPES = {
+            AIR: 'AIR',
+            GRASS: 'GRASS',
+            DIRT: 'DIRT',
+            STONE: 'STONE',
+            GOLD: 'GOLD'
+        };
+        
+        const BLOCK_PROPERTIES = {
+            [BLOCK_TYPES.AIR]: { name: "Air", color: null },
+            [BLOCK_TYPES.GRASS]: { name: "Grass", color: COLORS.GRASS_GREEN },
+            [BLOCK_TYPES.DIRT]: { name: "Dirt", color: COLORS.DIRT_BROWN },
+            [BLOCK_TYPES.STONE]: { name: "Stone", color: COLORS.STONE_GRAY },
+            [BLOCK_TYPES.GOLD]: { name: "Gold", color: COLORS.GOLD }
+        };
+        
+        // Game state
+        const game = {
+            player: {
+                x: WINDOW_WIDTH / 2,
+                y: WINDOW_HEIGHT / 2,
+                speed: 5,
+                selectedBlock: BLOCK_TYPES.GRASS
+            },
+            camera: {
+                x: 0,
+                y: 0
+            },
+            worldBlocks: new Map(),
+            keys: new Set()
+        };
+        
+        // Input handling
+        window.addEventListener('keydown', (e) => {
+            game.keys.add(e.key.toLowerCase());
+            
+            // Block selection
+            if (e.key >= '1' && e.key <= '4') {
+                const blockTypes = Object.values(BLOCK_TYPES);
+                game.player.selectedBlock = blockTypes[e.key];
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            game.keys.delete(e.key.toLowerCase());
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const worldX = Math.floor((mouseX + game.camera.x) / TILE_SIZE);
+            const worldY = Math.floor((mouseY + game.camera.y) / TILE_SIZE);
+            const pos = `${worldX},${worldY}`;
+            
+            if (e.button === 0) { // Left click
+                game.worldBlocks.set(pos, game.player.selectedBlock);
+            } else if (e.button === 2) { // Right click
+                game.worldBlocks.delete(pos);
+            }
+        });
+        
+        // Prevent context menu on right click
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        function update() {
+            // Player movement
+            if (game.keys.has('w')) game.player.y -= game.player.speed;
+            if (game.keys.has('s')) game.player.y += game.player.speed;
+            if (game.keys.has('a')) game.player.x -= game.player.speed;
+            if (game.keys.has('d')) game.player.x += game.player.speed;
+            
+            // Update camera to follow player
+            game.camera.x = game.player.x - WINDOW_WIDTH / 2;
+            game.camera.y = game.player.y - WINDOW_HEIGHT / 2;
+        }
+        
+        function render() {
+            // Clear screen
+            ctx.fillStyle = COLORS.SKY_BLUE;
+            ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            
+            // Draw blocks
+            game.worldBlocks.forEach((blockType, pos) => {
+                const [x, y] = pos.split(',').map(Number);
+                const screenX = x * TILE_SIZE - game.camera.x;
+                const screenY = y * TILE_SIZE - game.camera.y;
+                
+                if (screenX >= -TILE_SIZE && screenX <= WINDOW_WIDTH &&
+                    screenY >= -TILE_SIZE && screenY <= WINDOW_HEIGHT) {
+                    const props = BLOCK_PROPERTIES[blockType];
+                    if (props.color) {
+                        ctx.fillStyle = props.color;
+                        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                        ctx.strokeStyle = '#000';
+                        ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            });
+            
+            // Draw player
+            ctx.fillStyle = COLORS.WHITE;
+            ctx.beginPath();
+            ctx.arc(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2, 20, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw UI
+            ctx.fillStyle = COLORS.WHITE;
+            ctx.font = '24px Arial';
+            ctx.fillText(`Selected: ${BLOCK_PROPERTIES[game.player.selectedBlock].name}`, 10, 30);
+        }
+        
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+</html>
